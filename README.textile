@@ -1,0 +1,7 @@
+Performs a Twitter search in a similar fashion to <a href="http://twistori.com/">Twistori</a>, but purely using JavaScript.
+
+Change the search term by editing the hash part of the URL.
+
+Uses the "BBC Glow":http://www.bbc.co.uk/glow JavaScript framework.
+
+It's not quite like Twistori because it's designed to show you all the tweets for a matching term -- this would make it useful for tracking messages at an event.
