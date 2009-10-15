@@ -1,3 +1,10 @@
+h3. hub.html
+
+This shows panels of search results that update every few seconds.  Enter search terms and press the "+" button.
+
+
+h3. gobbler.html
+
 Performs a Twitter search in a similar fashion to <a href="http://twistori.com/">Twistori</a>, but purely using JavaScript.
 
 Change the search term by editing the hash part of the URL.
