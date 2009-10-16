@@ -86,6 +86,19 @@ function TwitterSearch(search) {
   this.update();
 }
 
+TwitterSearch.getTrends = function(callback) {
+  var url = 'http://search.twitter.com/trends/current.json?callback={callback}';
+  glow.net.loadScript(url, {
+    onLoad: function(data) {
+      var trends = [];
+      for (i in data.trends) {
+        trends = data.trends[i];
+      }
+      callback(glow.lang.map(trends.slice(0, 3), function(trend) { return trend.name; }));
+    }
+  });
+}
+
 TwitterSearch.prototype.setSearchFromForm = function(element) {
   this.search = this.panel.get('form input')[0].value;
   glow.events.fire(this, 'TwitterSearch:update_search', { });  
@@ -208,6 +221,14 @@ glow.ready(function() {
     }
   }
 
+  function initSearches(searches) {
+    glow.lang.map(searches, function(search) {
+      twitter_search = new TwitterSearch(search);
+      observe(twitter_search, 'TwitterSearch:destroy', updateSavedSearches);
+      observe(twitter_search, 'TwitterSearch:update_search', updateSavedSearches);
+    });
+  }
+
   observe(window, 'resize', function() {
     window.scrollTo(0, 1);
   });
@@ -223,12 +244,10 @@ glow.ready(function() {
   });
 
   var searches = Cookie.find('searches');
-  if (searches) {
-    glow.lang.map(searches, function(search) {
-      twitter_search = new TwitterSearch(search);
-      observe(twitter_search, 'TwitterSearch:destroy', updateSavedSearches);
-      observe(twitter_search, 'TwitterSearch:update_search', updateSavedSearches);
-    });
+  if ((typeof searches == 'undefined') || searches.length == 0) {
+   TwitterSearch.getTrends(function(trends) { initSearches(trends) }); 
+  } else {
+    initSearches(searches);
   }
 });
     </script>
