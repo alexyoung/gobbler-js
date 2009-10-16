@@ -121,14 +121,16 @@ TwitterSearch.prototype.showError = function(error) {
 }
 
 TwitterSearch.prototype.showTweet = function(tweet) {
-  var tweet = glow.dom.create(this.renderTweet(tweet)),
+  if (typeof tweet == 'undefined') return;
+
+  var tweet_html = glow.dom.create(this.renderTweet(tweet)),
       element = this.panel.get('.updates'),
       last_height = element[0].scrollHeight;
       
-  element.prepend(tweet);
+  element.prepend(tweet_html);
   element[0].style.bottom = '-' + (element[0].scrollHeight - last_height) + 'px';
-  tweet[0].style.opacity = 0.0;
-  glow.anim.fadeIn(tweet, 1);
+  tweet_html[0].style.opacity = 0.0;
+  glow.anim.fadeIn(tweet_html, 1);
   glow.anim.css(element, 0.5, { 'bottom': { to: 0 } }).start();
   this.last_id = tweet.id;
 }
@@ -155,10 +157,9 @@ TwitterSearch.prototype.update = function() {
       if (!data || !data.results) return;
 
       try {
-        var results = data.results.reverse();
+        var results = data.results.sort();
         twitter.tweets = results;
-        twitter.showTweet(results[0]);
-        twitter.tweets.pop();
+        twitter.showTweet(twitter.tweets.pop());
         twitter.garbageCollect();
       } catch (exception) {
         console.log(exception);
