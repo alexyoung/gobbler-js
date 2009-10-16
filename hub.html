@@ -45,6 +45,14 @@ $ = glow.dom.get;
 observe = glow.events.addListener;
 String.prototype.interpolate = function() { return glow.lang.interpolate(this, arguments[0], arguments[1]); };
 
+if (typeof console == 'undefined') {
+  console = {
+    log: function(message) {
+      alert(message);
+    }
+  };
+}
+
 /* TwitterSearch class */
 function TwitterSearch(search) {
   var html = '<div class="panel"><div class="header">';
@@ -166,7 +174,7 @@ Cookie.destroy = function(name) {
 glow.ready(function() {
   function updateSavedSearches(search) {
     try {
-      Cookie.create('searches', glow.lang.toArray($('input.search')).map(function(e) { return e.value }));
+      Cookie.create('searches', glow.lang.map(glow.lang.toArray($('input.search')), function(e) { return e.value }));
     } catch (exception) {
       console.log(exception);
     }
@@ -189,7 +197,7 @@ glow.ready(function() {
 
   var searches = Cookie.find('searches');
   if (searches) {
-    searches.map(function(search) {
+    glow.lang.map(searches, function(search) {
       twitter_search = new TwitterSearch(search);
       observe(twitter_search, 'TwitterSearch:destroy', updateSavedSearches);
     });
