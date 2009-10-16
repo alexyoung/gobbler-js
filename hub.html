@@ -66,7 +66,8 @@ function TwitterSearch(search) {
   this.last_id = '';
   this.throttle = true;
   this.throttle_max = 1;
-  this.poll_delay = 10000;
+  this.poll_delay = 2500;
+  this.tweets = [];
   this.panel = glow.dom.create(html, { interpolate: { search: this.search }, escapeHtml: true } );
   $('body').append(this.panel);
 
@@ -106,37 +107,45 @@ TwitterSearch.prototype.showError = function(error) {
   $('#error').show();
 }
 
+TwitterSearch.prototype.showTweet = function(tweet) {
+  var tweet = glow.dom.create(this.renderTweet(tweet)),
+      element = this.panel.get('.updates'),
+      last_height = element[0].scrollHeight;
+      
+  element.prepend(tweet);
+  element[0].style.bottom = '-' + (element[0].scrollHeight - last_height) + 'px';
+  tweet[0].style.opacity = 0.0;
+  glow.anim.fadeIn(tweet, 1);
+  glow.anim.css(element, 0.5, { 'bottom': { to: 0 } }).start();
+  this.last_id = tweet.id;
+}
+
 TwitterSearch.prototype.update = function() {
   var url = this.searchURL(),
       twitter = this;
+
+  if (this.tweets.length > 0) {
+    var tweet = this.tweets.pop();
+    this.showTweet(tweet);
+    return;
+  }
+
+  /* Rate limit */
+  if (this.last_poll && (new Date()) - this.last_poll < 10000) {
+    return;
+  }
+  
+  this.last_poll = new Date();
 
   glow.net.loadScript(url, {
     onLoad: function(data) {
       if (!data || !data.results) return;
 
       try {
-        var results = data.results.reverse(),
-            element = twitter.panel.get('.updates');
-
-        if (twitter.last_id == '' && results.length > twitter.throttle_max) {
-          results = results.slice(results.length - twitter.throttle_max);
-        }
-
-        if (twitter.throttle) {
-          results = results.slice(0, twitter.throttle_max);
-        }
-
-        for (i in results) {
-          var tweet = glow.dom.create(twitter.renderTweet(results[i])),
-              last_height = element[0].scrollHeight;
-          element.prepend(tweet);
-          element[0].style.bottom = '-' + (element[0].scrollHeight - last_height) + 'px';
-          tweet[0].style.opacity = 0.0;
-          glow.anim.fadeIn(tweet, 1);
-          glow.anim.css(element, 0.5, { 'bottom': { to: 0 } }).start();
-          twitter.last_id = results[i].id;
-        }
-
+        var results = data.results.reverse();
+        twitter.tweets = results;
+        twitter.showTweet(results[0]);
+        twitter.tweets.pop();
         twitter.garbageCollect();
       } catch (exception) {
         console.log(exception);
