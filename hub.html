@@ -43,7 +43,9 @@ p.footer { position: absolute; bottom: 0; background-color: #333; color: #aaa; r
 <script type="text/javascript">
 $ = glow.dom.get;
 observe = glow.events.addListener;
+String.prototype.interpolate = function() { return glow.lang.interpolate(this, arguments[0], arguments[1]); };
 
+/* TwitterSearch class */
 function TwitterSearch(search) {
   var html = '<div class="panel"><div class="header">';
   html += '<form><input class="search" type="text" value="{search}" />';
@@ -74,17 +76,18 @@ TwitterSearch.prototype.setSearchFromForm = function(element) {
   return false;
 }
 
-TwitterSearch.prototype.destroy = function(element) {
-  this.panel.destroy();
-  clearInterval(this.poller);
+TwitterSearch.prototype.renderTweet = function(tweet) {
+  var html = '<li><a href="http://twitter.com/{from_user}">{from_user}</a> {text}</li>';
+  return html.interpolate({ from_user: tweet['from_user'], text: tweet['text'] });
 }
 
-TwitterSearch.prototype.renderTweet = function(tweet) {
-  return '<li><a href="http://twitter.com/' + tweet['from_user'] + '">' + tweet['from_user'] + '</a> ' + tweet['text'] + '</li>';
+TwitterSearch.prototype.searchURL = function() {
+  var url = 'http://search.twitter.com/search.json?q={search}&callback=\{callback\}&since_id={since}';
+  return url.interpolate({ search: this.search, since: this.last_id });
 }
 
 TwitterSearch.prototype.update = function() {
-  var url = 'http://search.twitter.com/search.json?q=' + this.search + '&callback={callback}&since_id=' + this.last_id,
+  var url = this.searchURL(),
       twitter = this;
 
   glow.net.loadScript(url, { onLoad: function(data) {
@@ -113,58 +116,84 @@ TwitterSearch.prototype.update = function() {
         twitter.last_id = results[i].id;
       }
 
-      twitter.garbage_collect();
+      twitter.garbageCollect();
     } catch (exception) {
       console.log(exception);
     }
   }});
 }
 
-TwitterSearch.prototype.garbage_collect = function() {
+TwitterSearch.prototype.garbageCollect = function() {
   var items = this.panel.get('li');
   if (items.length > 25) {
     items.slice(0, items.length - 25).destroy();
   }
-
   $('script').destroy();
 }
 
+TwitterSearch.prototype.destroy = function(element) {
+  this.panel.destroy();
+  clearInterval(this.poller);
+  var event = glow.events.fire(this, 'TwitterSearch:destroy', { });
+}
+
+/* Cookie class */
+Cookie = {};
+Cookie.create = function(name, value, days, path) {
+  var expires = '';
+  path = typeof path == 'undefined' ? '/' : path;
+  
+  if (days) {
+    var date = new Date();
+    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+    expires = "; expires=" + date.toGMTString();
+  }
+
+  if (name && value) {
+    document.cookie = name + '=' + glow.data.encodeJson(value) + expires + '; path=' + path;
+  }
+}
+Cookie.find = function(name) {
+  var matches = document.cookie.match(name + '=([^;]*)');
+  if (matches && matches.length == 2) {
+    return glow.data.decodeJson(matches[1]);
+  }
+}
+Cookie.destroy = function(name) {
+  this.create(name, ' ', -1);
+}
+
 glow.ready(function() {
-  var last_id = '',
-      throttle = true,
-      throttle_max = 1;
+  function updateSavedSearches(search) {
+    try {
+      Cookie.create('searches', glow.lang.toArray($('input.search')).map(function(e) { return e.value }));
+    } catch (exception) {
+      console.log(exception);
+    }
+  }
 
   observe(window, 'resize', function() {
     window.scrollTo(0, 1);
   });
 
   observe($('#controls form'), 'submit', function() {
-    new TwitterSearch($('#controls form input')[0].value);
+    var search_input   = $('#controls form input')[0],
+        twitter_search = new TwitterSearch(search_input.value);
+
+    search_input.value = '';
+    updateSavedSearches();
+    observe(twitter_search, 'TwitterSearch:destroy', updateSavedSearches);
+
     return false;
   });
 
-  function find_selected_section() {
-    var links = $('#sections li a'),
-        link = false;
-
-    if (document.location.hash.length == 0) {
-      return links[0];
-    }
-
-    links.each(function() {
-      if (this.href.match(document.location.hash)) {
-        link = this;
-      }
+  var searches = Cookie.find('searches');
+  if (searches) {
+    searches.map(function(search) {
+      twitter_search = new TwitterSearch(search);
+      observe(twitter_search, 'TwitterSearch:destroy', updateSavedSearches);
     });
-
-    return link ? link : links[0];
   }
-
-  glow.events.addListener($('#sections li a'), 'click', function() {
-    last_id = '';
-    $('#sections li.selected').removeClass('selected');
-    $(this).parent().addClass('selected');
-  });
 });
     </script>
   </head>
