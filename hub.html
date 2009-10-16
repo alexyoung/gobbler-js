@@ -93,7 +93,7 @@ TwitterSearch.prototype.setSearchFromForm = function(element) {
 }
 
 TwitterSearch.prototype.renderTweet = function(tweet) {
-  var html = '<li><a href="http://twitter.com/{from_user}"><img width="48" height="48" src="{image}" />{from_user}</a> {text}</li>';
+  var html = '<li><a href="http://twitter.com/{from_user}"><img width="48" height="48" src="{image}" />{from_user}</a> {text}<br clear="both" /></li>';
   return html.interpolate({ image: tweet['profile_image_url'], from_user: tweet['from_user'], text: tweet['text'] });
 }
 
