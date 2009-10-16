@@ -6,15 +6,18 @@
 body { font-family: helvetica, sans-serif; background-color: #000; color: #fff }
 * { padding: 0; margin: 0 }
 a { color: #ffc; }
+a img { border: none }
 
 p.footer { position: absolute; bottom: 0; background-color: #333; color: #aaa; right: 0; padding: 4px 4px 0 4px }
+p#error { color: #990000; font-weight: bold }
 
 #controls { margin: 10px }
 
 .panel { width: 300px; height: 500px; background-color: #333; -moz-border-radius: 5px; -webkit-border-radius: 5px; border-radius: 5px; text-align: center; margin: 10px; float: left }
 .panel input.search { width: 200px; margin: 10px 10px 0 0; }
-.panel .updates { height: 450px; margin: 10px; overflow: hidden; color: #f9f9f9; list-style-type: none; border: 1px solid #464646; border-bottom-color: #2a2a2a; border-right-color: #2a2a2a; }
+.panel .updates { height: 450px; margin: 10px; overflow: hidden; overflow-y: auto color: #f9f9f9; list-style-type: none; border: 1px solid #464646; border-bottom-color: #2a2a2a; border-right-color: #2a2a2a; }
 .panel .updates li { padding: 10px; text-align: left; border-top: 1px solid #2a2a2a; border-bottom: 1px solid #464646; margin-bottom: 1px }
+.panel .updates li img { float: left; margin-right: 6px; margin-bottom: 2px; }
 
     </style>
     <script type="text/javascript">
@@ -63,6 +66,7 @@ function TwitterSearch(search) {
   this.last_id = '';
   this.throttle = true;
   this.throttle_max = 1;
+  this.poll_delay = 10000;
   this.panel = glow.dom.create(html, { interpolate: { search: this.search }, escapeHtml: true } );
   $('body').append(this.panel);
 
@@ -76,17 +80,20 @@ function TwitterSearch(search) {
 
   this.poller = setInterval(function(that) {
     return function() { return that.update(this); }
-  }(this), 3000);
+  }(this), this.poll_delay);
+
+  this.update();
 }
 
 TwitterSearch.prototype.setSearchFromForm = function(element) {
   this.search = this.panel.get('form input')[0].value;
+  glow.events.fire(this, 'TwitterSearch:update_search', { });  
   return false;
 }
 
 TwitterSearch.prototype.renderTweet = function(tweet) {
-  var html = '<li><a href="http://twitter.com/{from_user}">{from_user}</a> {text}</li>';
-  return html.interpolate({ from_user: tweet['from_user'], text: tweet['text'] });
+  var html = '<li><a href="http://twitter.com/{from_user}"><img width="48" height="48" src="{image}" />{from_user}</a> {text}</li>';
+  return html.interpolate({ image: tweet['profile_image_url'], from_user: tweet['from_user'], text: tweet['text'] });
 }
 
 TwitterSearch.prototype.searchURL = function() {
@@ -94,41 +101,48 @@ TwitterSearch.prototype.searchURL = function() {
   return url.interpolate({ search: this.search, since: this.last_id });
 }
 
+TwitterSearch.prototype.showError = function(error) {
+  $('#error')[0].html = error;
+  $('#error').show();
+}
+
 TwitterSearch.prototype.update = function() {
   var url = this.searchURL(),
       twitter = this;
 
-  glow.net.loadScript(url, { onLoad: function(data) {
-    if (!data || !data.results) return;
+  glow.net.loadScript(url, {
+    onLoad: function(data) {
+      if (!data || !data.results) return;
 
-    try {
-      var results = data.results.reverse(),
-          element = twitter.panel.get('.updates');
+      try {
+        var results = data.results.reverse(),
+            element = twitter.panel.get('.updates');
 
-      if (twitter.last_id == '' && results.length > twitter.throttle_max) {
-        results = results.slice(results.length - twitter.throttle_max);
+        if (twitter.last_id == '' && results.length > twitter.throttle_max) {
+          results = results.slice(results.length - twitter.throttle_max);
+        }
+
+        if (twitter.throttle) {
+          results = results.slice(0, twitter.throttle_max);
+        }
+
+        for (i in results) {
+          var tweet = glow.dom.create(twitter.renderTweet(results[i])),
+              last_height = element[0].scrollHeight;
+          element.prepend(tweet);
+          element[0].style.bottom = '-' + (element[0].scrollHeight - last_height) + 'px';
+          tweet[0].style.opacity = 0.0;
+          glow.anim.fadeIn(tweet, 1);
+          glow.anim.css(element, 0.5, { 'bottom': { to: 0 } }).start();
+          twitter.last_id = results[i].id;
+        }
+
+        twitter.garbageCollect();
+      } catch (exception) {
+        console.log(exception);
       }
-
-      if (twitter.throttle) {
-        results = results.slice(0, twitter.throttle_max);
-      }
-
-      for (i in results) {
-        var tweet = glow.dom.create(twitter.renderTweet(results[i])),
-            last_height = element[0].scrollHeight;
-        element.prepend(tweet);
-        element[0].style.bottom = '-' + (element[0].scrollHeight - last_height) + 'px';
-        tweet[0].style.opacity = 0.0;
-        glow.anim.fadeIn(tweet, 1);
-        glow.anim.css(element, 0.5, { 'bottom': { to: 0 } }).start();
-        twitter.last_id = results[i].id;
-      }
-
-      twitter.garbageCollect();
-    } catch (exception) {
-      console.log(exception);
     }
-  }});
+  });
 }
 
 TwitterSearch.prototype.garbageCollect = function() {
@@ -139,10 +153,14 @@ TwitterSearch.prototype.garbageCollect = function() {
   $('script').destroy();
 }
 
+TwitterSearch.prototype.stopPolling = function() {
+  clearInterval(this.poller);
+}
+
 TwitterSearch.prototype.destroy = function(element) {
   this.panel.destroy();
-  clearInterval(this.poller);
-  var event = glow.events.fire(this, 'TwitterSearch:destroy', { });
+  this.stopPolling();
+  glow.events.fire(this, 'TwitterSearch:destroy', { });
   return false;
 }
 
@@ -192,7 +210,6 @@ glow.ready(function() {
     search_input.value = '';
     updateSavedSearches();
     observe(twitter_search, 'TwitterSearch:destroy', updateSavedSearches);
-
     return false;
   });
 
@@ -201,6 +218,7 @@ glow.ready(function() {
     glow.lang.map(searches, function(search) {
       twitter_search = new TwitterSearch(search);
       observe(twitter_search, 'TwitterSearch:destroy', updateSavedSearches);
+      observe(twitter_search, 'TwitterSearch:update_search', updateSavedSearches);
     });
   }
 });
@@ -212,6 +230,8 @@ glow.ready(function() {
         Add Search: <input type="text" value="" /> <input type="submit" value="+" />
       </form>
     </div>
+
+    <p id="error"></p>
 
     <p class="footer">By <a href="http://alexyoung.org">Alex Young</a></p>
   </body>
