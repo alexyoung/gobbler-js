@@ -143,6 +143,7 @@ TwitterSearch.prototype.destroy = function(element) {
   this.panel.destroy();
   clearInterval(this.poller);
   var event = glow.events.fire(this, 'TwitterSearch:destroy', { });
+  return false;
 }
 
 /* Cookie class */
