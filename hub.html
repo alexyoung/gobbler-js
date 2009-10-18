@@ -112,7 +112,7 @@ TwitterSearch.prototype.renderTweet = function(tweet) {
 
 TwitterSearch.prototype.searchURL = function() {
   var url = 'http://search.twitter.com/search.json?q={search}&callback=\{callback\}&since_id={since}';
-  return url.interpolate({ search: this.search, since: this.last_id });
+  return url.interpolate({ search: encodeURIComponent(this.search), since: this.last_id });
 }
 
 TwitterSearch.prototype.showError = function(error) {
